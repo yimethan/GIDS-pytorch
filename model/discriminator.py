@@ -1,5 +1,7 @@
 import torch.nn as nn
 
+from config import Config
+
 class Discriminator(nn.Module):
 
     def __init__(self):
