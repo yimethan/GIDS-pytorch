@@ -28,11 +28,10 @@ gen.cuda()
 dis1.cuda()
 dis2.cuda()
 criterion.cuda()
-Tensor = torch.cuda.FloatTensor
 
 dataset = Dataset()
 
-train_size = len(dataset) * 0.9
+train_size = int(len(dataset) * 0.9)
 test_size = len(dataset) - train_size
 train_set, test_set = random_split(dataset, [train_size, test_size])
 
@@ -48,7 +47,7 @@ total_steps = len(train_dataloader) // Config.batch_size * Config.epochs
 step = 0
 
 
-def log_time(batch_idx, duration, g_loss, d1_loss, d2_loss):
+def log_time(epoch, batch_idx, duration, g_loss, d1_loss, d2_loss):
     samples_per_sec = Config.batch_size / duration
     training_t_left = (total_steps / step - 1.0) * duration if step > 0 else 0
     print_string = "epoch {:>3} | batch {:>6} | examples/s: {:5.1f}" + \
@@ -71,132 +70,137 @@ def sec_to_hm_str(t):
 real_label, fake_label = 1, 0
 normal_label, abnormal_label = 1, 0
 
-for epoch in range(Config.epochs):
 
-    # TODO: TRAIN
+def train():
+    global step
 
-    dis1.train()
-    dis2.train()
-    gen.train()
+    for epoch in range(Config.epochs):
 
-    start_time = time.time()
+        # TODO: TRAIN
 
-    for batch_idx, (inputs, labels) in enumerate(train_dataloader):
+        dis1.train()
+        dis2.train()
+        gen.train()
 
-        # TODO: train first discriminator for normal/abnormal data
+        start_time = time.time()
 
-        dis1.zero_grad()
+        for batch_idx, (inputs, labels) in enumerate(train_dataloader):
 
-        inputs = Tensor(inputs)
+            # TODO: train first discriminator for normal/abnormal data
 
-        output = dis1(inputs).view(-1)
+            dis1.zero_grad()
 
-        dis_1_loss = criterion(output, labels)
-        dis_1_loss.backward()
+            output = dis1(inputs).view(-1)
 
-        writer.add_scalar('loss/dis1_loss', dis_1_loss.data.epoch)
+            dis_1_loss = criterion(output, labels)
+            dis_1_loss.backward()
 
-        # TODO: train second discriminator for real data
+            writer.add_scalar('loss/dis1_loss', dis_1_loss.data.epoch)
 
-        dis2.zero_grad()
+            # TODO: train second discriminator for real data
 
-        output = dis2(inputs).view(-1)
+            dis2.zero_grad()
 
-        labels.fill_(real_label)
+            output = dis2(inputs).view(-1)
 
-        dis_2_real_loss = criterion(output, labels)
-        dis_2_real_loss.backward()
+            labels.fill_(real_label)
 
-        # TODO: train second discriminator for fake data
+            dis_2_real_loss = criterion(output, labels)
+            dis_2_real_loss.backward()
 
-        noise = torch.randn(inputs.size(0), out=256, dtype=1, layout=1, device='cuda')
+            # TODO: train second discriminator for fake data
 
-        fake_inputs = gen(noise)
-        labels.fill_(fake_label)
+            noise = torch.randn(inputs.size(0), out=256, dtype=1, layout=1, device='cuda')
 
-        output = dis2(fake_inputs)
+            fake_inputs = gen(noise)
+            labels.fill_(fake_label)
 
-        dis_2_fake_loss = criterion(output, labels)
-        dis_2_fake_loss.backward()
+            output = dis2(fake_inputs)
 
-        dis_2_total_loss = dis_2_real_loss + dis_2_fake_loss
+            dis_2_fake_loss = criterion(output, labels)
+            dis_2_fake_loss.backward()
 
-        writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss.data.epoch)
+            dis_2_total_loss = dis_2_real_loss + dis_2_fake_loss
 
-        optim_D2.step()
+            writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss.data.epoch)
 
-        # TODO: train generator
+            optim_D2.step()
 
-        gen.zero_grad()
+            # TODO: train generator
 
-        labels.fill_(real_label)
-        output = dis2(fake_inputs).view(-1)
+            gen.zero_grad()
 
-        gen_loss = criterion(output, labels)
-        gen_loss.backward()
+            labels.fill_(real_label)
+            output = dis2(fake_inputs).view(-1)
 
-        optim_G.step()
+            gen_loss = criterion(output, labels)
+            gen_loss.backward()
 
-        # TODO: save checkpoints
+            optim_G.step()
 
-        gen_path = Config.save_path + '/gen/epoch_{}'.format(epoch)
-        if not os.path.exists(gen_path):
-            os.makedirs(gen_path)
-        dis1_path = Config.save_path + '/dis1/epoch_{}'.format(epoch)
-        if not os.path.exists(dis1_path):
-            os.makedirs(dis1_path)
-        dis2_path = Config.save_path + '/dis2/epoch_{}'.format(epoch)
-        if not os.path.exists(dis2_path):
-            os.makedirs(dis2_path)
+            # TODO: save checkpoints
 
-        torch.save(gen.state_dict(), gen_path + '/state_dict.pth')
-        torch.save(dis1.state_dict(), dis1_path + '/state_dict.pth')
-        torch.save(dis2.state_dict(), dis2_path + '/state_dict.pth')
-        torch.save(gen, gen_path + '/model.pth')
-        torch.save(dis1, dis1_path + '/model.pth')
-        torch.save(dis2, dis2_path + '/model.pth')
+            gen_path = Config.save_path + '/gen/epoch_{}'.format(epoch)
+            if not os.path.exists(gen_path):
+                os.makedirs(gen_path)
+            dis1_path = Config.save_path + '/dis1/epoch_{}'.format(epoch)
+            if not os.path.exists(dis1_path):
+                os.makedirs(dis1_path)
+            dis2_path = Config.save_path + '/dis2/epoch_{}'.format(epoch)
+            if not os.path.exists(dis2_path):
+                os.makedirs(dis2_path)
 
-        duration = time.time() - start_time
+            torch.save(gen.state_dict(), gen_path + '/state_dict.pth')
+            torch.save(dis1.state_dict(), dis1_path + '/state_dict.pth')
+            torch.save(dis2.state_dict(), dis2_path + '/state_dict.pth')
+            torch.save(gen, gen_path + '/model.pth')
+            torch.save(dis1, dis1_path + '/model.pth')
+            torch.save(dis2, dis2_path + '/model.pth')
 
-        if batch_idx % 100 == 0:
-            print("[Train] Epoch: {}/{}, Batch: {}/{}, D_1 loss: {}, d_2 loss: {}, G loss: {}".format(epoch,
-                                                                                                      Config.epochs,
-                                                                                                      batch_idx,
-                                                                                                      len(train_dataloader),
-                                                                                                      dis_1_loss,
-                                                                                                      dis_2_total_loss,
-                                                                                                      gen_loss))
+            duration = time.time() - start_time
 
-        if batch_idx % Config.log_f == 0:
-            log_time(batch_idx, duration, gen_loss.cpu().data, dis_1_loss.cpu().data, dis_2_total_loss.cpu().data)
+            if batch_idx % 100 == 0:
+                print("[Train] Epoch: {}/{}, Batch: {}/{}, D_1 loss: {}, d_2 loss: {}, G loss: {}".format(epoch,
+                                                                                                          Config.epochs,
+                                                                                                          batch_idx,
+                                                                                                          len(train_dataloader),
+                                                                                                          dis_1_loss,
+                                                                                                          dis_2_total_loss,
+                                                                                                          gen_loss))
 
-        step += 1
+            if batch_idx % Config.log_f == 0:
+                log_time(epoch, batch_idx, duration, gen_loss.cpu().data, dis_1_loss.cpu().data, dis_2_total_loss.cpu().data)
 
-    # TODO: TEST
+            step += 1
 
-    dis1.eval()
-    dis2.eval()
-    gen.eval()
+        # TODO: TEST
 
-    with torch.no_grad():
+        dis1.eval()
+        dis2.eval()
+        gen.eval()
 
-        img_path = Config.save_path + '/generated_img_samples'.format(epoch)
-        if not os.path.exists(img_path):
-            os.makedirs(img_path)
+        with torch.no_grad():
 
-        random_x = torch.randn(64, 256, 1, 1).to('cuda')
-        test_sample = gen(random_x).detach().cpu()
+            img_path = Config.save_path + '/generated_img_samples'.format(epoch)
+            if not os.path.exists(img_path):
+                os.makedirs(img_path)
 
-        save_image(test_sample, '{}/{}.png'.format(img_path, epoch))
-        writer.add_image('generated_img_samples', test_sample, epoch)
+            random_x = torch.randn(64, 256, 1, 1).to('cuda')
+            test_sample = gen(random_x).detach().cpu()
 
-        batch_acc = 0
+            save_image(test_sample, '{}/{}.png'.format(img_path, epoch))
+            writer.add_image('generated_img_samples', test_sample, epoch)
 
-        for batch_idx, (inputs, labels) in enumerate(test_dataloader):
+            batch_acc = 0
 
-            output = dis1(inputs)
+            for batch_idx, (inputs, labels) in enumerate(test_dataloader):
+                output = dis1(inputs)
 
-            batch_acc += compute_acc(output, labels)
+                batch_acc += compute_acc(output, labels)
 
-        epoch_acc = batch_acc / len(test_dataloader)
-        writer.add_scalar('test_acc', epoch_acc, epoch)
+            epoch_acc = batch_acc / len(test_dataloader)
+            writer.add_scalar('test_acc', epoch_acc, epoch)
+
+
+if __name__ == '__main__':
+    train()

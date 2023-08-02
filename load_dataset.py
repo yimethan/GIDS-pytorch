@@ -1,8 +1,11 @@
+import torch
+
 from config import Config
 
 from torchvision import transforms
 import torch.utils.data as data
-
+from PIL import Image
+import numpy as np
 import os
 
 
@@ -11,11 +14,13 @@ class Transform:
     def __init__(self):
         self.data_transform = transforms.Compose([
             transforms.Grayscale(1),
-            transforms.ToTensor()
         ])
 
     def __call__(self, img):
+        img = Image.open(img)
         img = self.data_transform(img)
+        img = np.array(img)
+        img = torch.from_numpy(img)
 
         return img
 
@@ -27,12 +32,12 @@ class Dataset(data.Dataset):
 
         self.dataset_path = Config.dataset_path
 
-        self.get_data_from_dir()
-
         self.transform = Transform()
 
         self.images = []
         self.labels = []
+
+        self.get_data_from_dir()
 
     def __len__(self):
         return len(self.images)
