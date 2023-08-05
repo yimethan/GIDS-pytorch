@@ -1,13 +1,14 @@
 import torch.nn as nn
+import torch
 
-from config import Config
+device = torch.device('cuda')
 
 class Discriminator(nn.Module):
 
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.conv0 = nn.Conv2d(1, 1, kernel_size=(4, 3), stride=(2, 1), padding=1, bias=False)
+        self.conv0 = nn.Conv2d(16, 1, kernel_size=(4, 3), stride=(2, 1), padding=1, bias=False)
         self.relu0 = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(1, 1, kernel_size=(4, 3), stride=(2, 1), padding=1, bias=False)
         self.relu1 = nn.ReLU(inplace=True)
@@ -15,7 +16,8 @@ class Discriminator(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.conv0(x)
+
+        x = self.conv0(x).to(device)
         x = self.relu0(x)
         x = self.conv1(x)
         x = self.relu1(x)

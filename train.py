@@ -1,7 +1,7 @@
-from model.discriminator import Discriminator
-from model.generator import Generator
 from config import Config
 from load_dataset import Dataset
+from model.discriminator import Discriminator
+from model.generator import Generator
 
 import torch
 import torch.nn as nn
@@ -13,23 +13,20 @@ from torch.utils.data import DataLoader, random_split
 import os
 import time
 
-writer = SummaryWriter()
 compute_acc = BinaryAccuracy(threshold=Config.detection_thr)
 
 device = torch.device('cuda')
 
+# TODO: cannot train multiple models simultaneously?
 gen = Generator()
 dis1 = Discriminator()
 dis2 = Discriminator()
 
 criterion = nn.BCELoss()
 
-gen.cuda()
-dis1.cuda()
-dis2.cuda()
-criterion.cuda()
-
 dataset = Dataset()
+
+writer = SummaryWriter()
 
 train_size = int(len(dataset) * 0.9)
 test_size = len(dataset) - train_size
@@ -45,7 +42,6 @@ optim_D2 = Adam(dis2.parameters(), lr=Config.lr, betas=(Config.b1, Config.b2))
 total_steps = len(train_dataloader) // Config.batch_size * Config.epochs
 
 step = 0
-
 
 def log_time(epoch, batch_idx, duration, g_loss, d1_loss, d2_loss):
     samples_per_sec = Config.batch_size / duration
@@ -110,7 +106,7 @@ def train():
 
             # TODO: train second discriminator for fake data
 
-            noise = torch.randn(inputs.size(0), out=256, dtype=1, layout=1, device='cuda')
+            noise = torch.randn(inputs.size(0), out=256, dtype=1, layout=1).to(device)
 
             fake_inputs = gen(noise)
             labels.fill_(fake_label)
@@ -185,7 +181,7 @@ def train():
             if not os.path.exists(img_path):
                 os.makedirs(img_path)
 
-            random_x = torch.randn(64, 256, 1, 1).to('cuda')
+            random_x = torch.randn(64, 256, 1, 1).to(device)
             test_sample = gen(random_x).detach().cpu()
 
             save_image(test_sample, '{}/{}.png'.format(img_path, epoch))
@@ -195,6 +191,9 @@ def train():
 
             for batch_idx, (inputs, labels) in enumerate(test_dataloader):
                 output = dis1(inputs)
+
+                if output < Config.detection_thr:
+                    output = dis2(inputs)
 
                 batch_acc += compute_acc(output, labels)
 

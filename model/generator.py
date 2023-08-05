@@ -1,12 +1,14 @@
 import torch.nn as nn
 
+from config import Config
+
 class Generator(nn.Module):
 
     def __init__(self):
         super(Generator, self).__init__()
 
-        self.deconv0 = nn.ConvTranspose2d(256, 512, kernel_size=(3, 4), stride=2, bias=False)
-        self.relu0 = nn.ReLU(inplace=True)
+        # self.deconv0 = nn.ConvTranspose2d(256, 512, kernel_size=(3, 4), stride=2, bias=False)
+        # self.relu0 = nn.ReLU(inplace=True)
         self.deconv1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=4, padding=1, bias=False)
         self.relu1 = nn.ReLU(inplace=True)
         self.deconv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=4, padding=1, bias=False)
@@ -18,8 +20,9 @@ class Generator(nn.Module):
 
     def forward(self, x):
 
-        x = self.deconv0(x)
-        x = self.relu0(x)
+        x = x.resize_(Config.resize_size)
+        # x = self.deconv0(x)
+        # x = self.relu0(x)
         x = self.deconv1(x)
         x = self.relu1(x)
         x = self.deconv2(x)

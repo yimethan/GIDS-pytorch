@@ -13,7 +13,7 @@ class Transform:
 
     def __init__(self):
         self.data_transform = transforms.Compose([
-            transforms.Grayscale(1),
+            transforms.Grayscale()
         ])
 
     def __call__(self, img):
@@ -38,6 +38,9 @@ class Dataset(data.Dataset):
         self.labels = []
 
         self.get_data_from_dir()
+
+        ex_img = Image.open(self.images[0])
+        print(ex_img.size)
 
     def __len__(self):
         return len(self.images)
