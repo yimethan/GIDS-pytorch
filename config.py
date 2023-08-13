@@ -9,12 +9,10 @@ class Config:
     b2 = 0.999
 
     detection_thr = 0.1
-    input_size = (256, 6, 4)
     resize_size = (512, 3, 2)
-    dis_input_size = (1, 16, )
+    dis_input_size = (batch_size, 1, 64, 48)
 
-    sample_f = 1
-    log_f = 125
+    log_f = 3000
 
     save_path = './ckpt'
-    dataset_path = '../dataset/CHD/id_image/'
+    dataset_path = '../dataset/CHD/id_image_64/'

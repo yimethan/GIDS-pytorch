@@ -18,9 +18,9 @@ compute_acc = BinaryAccuracy(threshold=Config.detection_thr)
 device = torch.device('cuda')
 
 # TODO: cannot train multiple models simultaneously?
-gen = Generator()
-dis1 = Discriminator()
-dis2 = Discriminator()
+gen = Generator().to(device)
+dis1 = Discriminator().to(device)
+dis2 = Discriminator().to(device)
 
 criterion = nn.BCELoss()
 
@@ -63,8 +63,8 @@ def sec_to_hm_str(t):
     return "{:02d}h{:02d}m{:02d}s".format(t, m, s)
 
 
-real_label, fake_label = 1, 0
-normal_label, abnormal_label = 1, 0
+real_label, fake_label = 0, 1
+normal_label, abnormal_label = 0, 1
 
 
 def train():
@@ -86,39 +86,58 @@ def train():
 
             dis1.zero_grad()
 
-            output = dis1(inputs).view(-1)
+            inputs = inputs.to(device)
+            labels = labels.to(device)
 
-            dis_1_loss = criterion(output, labels)
+            # print(inputs.size())  # batch, 1, 64, 48
+
+            output = dis1(inputs).to(device)
+
+            # print(output.size())  # 16
+            # print(labels.size())  # 16
+
+            dis_1_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
             dis_1_loss.backward()
 
-            writer.add_scalar('loss/dis1_loss', dis_1_loss.data.epoch)
+            writer.add_scalar('loss/dis1_loss', dis_1_loss.data, epoch)
 
             # TODO: train second discriminator for real data
 
             dis2.zero_grad()
 
-            output = dis2(inputs).view(-1)
+            output = dis2(inputs)
 
             labels.fill_(real_label)
 
-            dis_2_real_loss = criterion(output, labels)
+            dis_2_real_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
             dis_2_real_loss.backward()
 
             # TODO: train second discriminator for fake data
 
-            noise = torch.randn(inputs.size(0), out=256, dtype=1, layout=1).to(device)
+            noise = torch.randn(Config.batch_size, 256, 1, 1).to(device)
+            # print(noise.size())
 
-            fake_inputs = gen(noise)
+            fake_inputs = gen(noise).to(device)
             labels.fill_(fake_label)
+            # print(fake_inputs.size(), labels.size())
 
             output = dis2(fake_inputs)
 
-            dis_2_fake_loss = criterion(output, labels)
-            dis_2_fake_loss.backward()
+            try:
+                dis_2_fake_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
+            except ValueError:
+                # print('ValueError batch idx:', batch_idx)  # batch 14562
+                # print(inputs, inputs.size())
+                # print(labels, labels.size())
+                # print(output, output.size())
+                labels = torch.ones(Config.batch_size)
+                dis_2_fake_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
+
+            dis_2_fake_loss.backward(retain_graph=True)
 
             dis_2_total_loss = dis_2_real_loss + dis_2_fake_loss
 
-            writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss.data.epoch)
+            writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss.data, epoch)
 
             optim_D2.step()
 
@@ -127,10 +146,11 @@ def train():
             gen.zero_grad()
 
             labels.fill_(real_label)
-            output = dis2(fake_inputs).view(-1)
 
-            gen_loss = criterion(output, labels)
+            gen_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
             gen_loss.backward()
+
+            writer.add_scalar('loss/gen_total_loss', gen_loss.data, epoch)
 
             optim_G.step()
 
@@ -155,7 +175,7 @@ def train():
 
             duration = time.time() - start_time
 
-            if batch_idx % 100 == 0:
+            if batch_idx % Config.log_f == 0:
                 print("[Train] Epoch: {}/{}, Batch: {}/{}, D_1 loss: {}, d_2 loss: {}, G loss: {}".format(epoch,
                                                                                                           Config.epochs,
                                                                                                           batch_idx,
@@ -164,10 +184,9 @@ def train():
                                                                                                           dis_2_total_loss,
                                                                                                           gen_loss))
 
-            if batch_idx % Config.log_f == 0:
-                log_time(epoch, batch_idx, duration, gen_loss.cpu().data, dis_1_loss.cpu().data, dis_2_total_loss.cpu().data)
-
             step += 1
+
+        log_time(epoch, batch_idx, duration, gen_loss.cpu().data, dis_1_loss.cpu().data, dis_2_total_loss.cpu().data)
 
         # TODO: TEST
 

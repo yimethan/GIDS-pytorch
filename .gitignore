@@ -3,5 +3,8 @@ Converting_CAN_to_Image.py
 .idea
 .DS_Store
 .ipynb_checkpoints
+*/.ipynb_checkpoints
 debug.ipynb
 __pycache__
+ckpt
+runs
