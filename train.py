@@ -130,7 +130,7 @@ def train():
                 # print(inputs, inputs.size())
                 # print(labels, labels.size())
                 # print(output, output.size())
-                labels = torch.ones(Config.batch_size)
+                labels = torch.ones(Config.batch_size).to(device)
                 dis_2_fake_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
 
             dis_2_fake_loss.backward(retain_graph=True)
