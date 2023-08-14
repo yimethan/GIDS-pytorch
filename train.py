@@ -13,9 +13,9 @@ from torch.utils.data import DataLoader, random_split
 import os
 import time
 
-compute_acc = BinaryAccuracy(threshold=Config.detection_thr)
-
 device = torch.device('cuda')
+
+compute_acc = BinaryAccuracy(threshold=Config.detection_thr).to(device)
 
 # TODO: cannot train multiple models simultaneously?
 gen = Generator().to(device)
@@ -130,7 +130,7 @@ def train():
                 # print(inputs, inputs.size())
                 # print(labels, labels.size())
                 # print(output, output.size())
-                labels = torch.ones(Config.batch_size)
+                labels = torch.ones(Config.batch_size).to(device)
                 dis_2_fake_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
 
             dis_2_fake_loss.backward(retain_graph=True)
@@ -204,19 +204,38 @@ def train():
             test_sample = gen(random_x).detach().cpu()
 
             save_image(test_sample, '{}/{}.png'.format(img_path, epoch))
-            writer.add_image('generated_img_samples', test_sample, epoch)
+            writer.add_image('generated_img_samples', test_sample, epoch, dataformats='NCHW')
 
             batch_acc = 0
 
             for batch_idx, (inputs, labels) in enumerate(test_dataloader):
-                output = dis1(inputs)
+                inputs = inputs.to(device)
+                labels = labels.to(device)
 
-                if output < Config.detection_thr:
-                    output = dis2(inputs)
+                # print('inputs:', inputs.size())
+                # print('labels:', labels.size())
 
-                batch_acc += compute_acc(output, labels)
+                output = dis1(inputs).to(device)
+                # print('output (right after dis1):', output, output.size())
+
+                for out in range(len(output)):
+                    try:
+                        if output[out] < Config.detection_thr:
+                            output[out] = dis2(inputs)[out].to(device)
+                    except IndexError:
+                        output = output.repeat(8)
+                        # print('output (in except):', output, output.size())
+
+                        if output[out] < Config.detection_thr:
+                            output[out] = dis2(inputs)[out].to(device)
+
+                output = output.to(device)
+
+                batch_acc += compute_acc(output.to(torch.float32), labels.to(torch.float32))
 
             epoch_acc = batch_acc / len(test_dataloader)
+            print(f'{epoch} test accuracy: {epoch_acc}')
+
             writer.add_scalar('test_acc', epoch_acc, epoch)
 
 
