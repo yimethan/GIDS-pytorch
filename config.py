@@ -1,5 +1,3 @@
-import torch
-
 class Config:
 
     epochs = 30
@@ -16,3 +14,4 @@ class Config:
 
     save_path = './ckpt'
     dataset_path = '../dataset/CHD/id_image_64/'
+

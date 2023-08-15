@@ -219,15 +219,8 @@ def train():
                 # print('output (right after dis1):', output, output.size())
 
                 for out in range(len(output)):
-                    try:
-                        if output[out] < Config.detection_thr:
-                            output[out] = dis2(inputs)[out].to(device)
-                    except IndexError:
-                        output = output.repeat(8)
-                        # print('output (in except):', output, output.size())
-
-                        if output[out] < Config.detection_thr:
-                            output[out] = dis2(inputs)[out].to(device)
+                    if output[out] < Config.detection_thr:
+                        output[out] = dis2(inputs)[out].to(device)
 
                 output = output.to(device)
 
@@ -241,3 +234,4 @@ def train():
 
 if __name__ == '__main__':
     train()
+    writer.close()
