@@ -11,13 +11,11 @@ from torchvision.utils import save_image
 from torchmetrics.classification import BinaryAccuracy
 from torch.utils.data import DataLoader, random_split
 import os
-import time
 
 device = torch.device('cuda')
 
 compute_acc = BinaryAccuracy(threshold=Config.detection_thr).to(device)
 
-# TODO: cannot train multiple models simultaneously?
 gen = Generator().to(device)
 dis1 = Discriminator().to(device)
 dis2 = Discriminator().to(device)
@@ -39,36 +37,11 @@ optim_G = Adam(gen.parameters(), lr=Config.lr, betas=(Config.b1, Config.b2))
 optim_D1 = Adam(dis1.parameters(), lr=Config.lr, betas=(Config.b1, Config.b2))
 optim_D2 = Adam(dis2.parameters(), lr=Config.lr, betas=(Config.b1, Config.b2))
 
-total_steps = len(train_dataloader) // Config.batch_size * Config.epochs
-
-step = 0
-
-def log_time(epoch, batch_idx, duration, g_loss, d1_loss, d2_loss):
-    samples_per_sec = Config.batch_size / duration
-    training_t_left = (total_steps / step - 1.0) * duration if step > 0 else 0
-    print_string = "epoch {:>3} | batch {:>6} | examples/s: {:5.1f}" + \
-                   " | Gen_loss: {:.5f} | Dis1_loss: {:.5f} | Dis2_loss: {:.5f} | time elapsed: {} | time left: {}"
-    print(print_string.format(epoch, batch_idx, samples_per_sec, g_loss, d1_loss, d2_loss,
-                              sec_to_hm_str(duration), sec_to_hm_str(training_t_left)))
-
-
-def sec_to_hm_str(t):
-    # 10239 -> '02h50m39s'
-
-    t = int(t)
-    s = t % 60
-    t //= 60
-    m = t % 60
-    t //= 60
-    return "{:02d}h{:02d}m{:02d}s".format(t, m, s)
-
-
 real_label, fake_label = 0, 1
 normal_label, abnormal_label = 0, 1
 
 
 def train():
-    global step
 
     for epoch in range(Config.epochs):
 
@@ -78,83 +51,76 @@ def train():
         dis2.train()
         gen.train()
 
-        start_time = time.time()
-
         for batch_idx, (inputs, labels) in enumerate(train_dataloader):
+
+            optim_G.zero_grad()
+            optim_D1.zero_grad()
+            optim_D2.zero_grad()
+
+            inputs = inputs.to(device) # batch, 1, 64, 48
+            labels = labels.to(device)
 
             # TODO: train first discriminator for normal/abnormal data
 
-            dis1.zero_grad()
-
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-
-            # print(inputs.size())  # batch, 1, 64, 48
-
-            output = dis1(inputs).to(device)
+            dis1_output = dis1(inputs).to(device)
 
             # print(output.size())  # 16
             # print(labels.size())  # 16
 
-            dis_1_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
+            dis_1_loss = criterion(dis1_output.to(torch.float32), labels.to(torch.float32))
             dis_1_loss.backward()
-
-            writer.add_scalar('loss/dis1_loss', dis_1_loss.data, epoch)
 
             # TODO: train second discriminator for real data
 
-            dis2.zero_grad()
-
-            output = dis2(inputs)
-
             labels.fill_(real_label)
 
-            dis_2_real_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
+            dis2_real_output = dis2(inputs).to(device)
+
+            dis_2_real_loss = criterion(dis2_real_output.to(torch.float32), labels.to(torch.float32))
             dis_2_real_loss.backward()
 
             # TODO: train second discriminator for fake data
 
             noise = torch.randn(Config.batch_size, 256, 1, 1).to(device)
-            # print(noise.size())
-
             fake_inputs = gen(noise).to(device)
             labels.fill_(fake_label)
-            # print(fake_inputs.size(), labels.size())
 
-            output = dis2(fake_inputs)
+            dis2_fake_output = dis2(fake_inputs.detach())
 
             try:
-                dis_2_fake_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
+                dis_2_fake_loss = criterion(dis2_fake_output.to(torch.float32), labels.to(torch.float32))
             except ValueError:
                 # print('ValueError batch idx:', batch_idx)  # batch 14562
                 # print(inputs, inputs.size())
                 # print(labels, labels.size())
                 # print(output, output.size())
                 labels = torch.ones(Config.batch_size).to(device)
-                dis_2_fake_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
+                dis_2_fake_loss = criterion(dis2_fake_output.to(torch.float32), labels.to(torch.float32))
 
-            dis_2_fake_loss.backward(retain_graph=True)
+            dis_2_fake_loss.backward()
+            optim_D2.step()
 
             dis_2_total_loss = dis_2_real_loss + dis_2_fake_loss
 
-            writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss.data, epoch)
-
-            optim_D2.step()
-
             # TODO: train generator
-
-            gen.zero_grad()
 
             labels.fill_(real_label)
 
-            gen_loss = criterion(output.to(torch.float32), labels.to(torch.float32))
+            dis2_output_for_gen = dis2(fake_inputs)
+
+            gen_loss = criterion(dis2_output_for_gen.to(torch.float32), labels.to(torch.float32))
             gen_loss.backward()
-
-            writer.add_scalar('loss/gen_total_loss', gen_loss.data, epoch)
-
             optim_G.step()
 
             # TODO: save checkpoints
+
+            writer.add_scalar('loss/dis1_loss', dis_1_loss.data, epoch)
+
+            writer.add_scalar('loss/dis_2_real_loss', dis_2_real_loss.data, epoch)
+            writer.add_scalar('loss/dis2_fake_loss', dis_2_fake_loss, epoch)
+            writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss.data, epoch)
+
+            writer.add_scalar('loss/gen_loss', gen_loss.data, epoch)
 
             gen_path = Config.save_path + '/gen/epoch_{}'.format(epoch)
             if not os.path.exists(gen_path):
@@ -173,20 +139,10 @@ def train():
             torch.save(dis1, dis1_path + '/model.pth')
             torch.save(dis2, dis2_path + '/model.pth')
 
-            duration = time.time() - start_time
-
             if batch_idx % Config.log_f == 0:
                 print("[Train] Epoch: {}/{}, Batch: {}/{}, D_1 loss: {}, d_2 loss: {}, G loss: {}".format(epoch,
-                                                                                                          Config.epochs,
-                                                                                                          batch_idx,
-                                                                                                          len(train_dataloader),
-                                                                                                          dis_1_loss,
-                                                                                                          dis_2_total_loss,
-                                                                                                          gen_loss))
+                           Config.epochs, batch_idx, len(train_dataloader), dis_1_loss, dis_2_total_loss, gen_loss))
 
-            step += 1
-
-        log_time(epoch, batch_idx, duration, gen_loss.cpu().data, dis_1_loss.cpu().data, dis_2_total_loss.cpu().data)
 
         # TODO: TEST
 
@@ -203,7 +159,7 @@ def train():
             random_x = torch.randn(64, 256, 1, 1).to(device)
             test_sample = gen(random_x).detach().cpu()
 
-            save_image(test_sample, '{}/{}.png'.format(img_path, epoch))
+            save_image(test_sample[0], '{}/{}.png'.format(img_path, epoch))
             writer.add_image('generated_img_samples', test_sample, epoch, dataformats='NCHW')
 
             batch_acc = 0
@@ -234,4 +190,5 @@ def train():
 
 if __name__ == '__main__':
     train()
+    writer.export_scalars_to_json(Config.save_path + '/scalars.json')
     writer.close()
