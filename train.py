@@ -57,18 +57,16 @@ def train():
             optim_D1.zero_grad()
             optim_D2.zero_grad()
 
-            inputs = inputs.to(device) # batch, 1, 64, 48
+            inputs = inputs.to(device)  # batch, 1, 64, 48
             labels = labels.to(device)
 
             # TODO: train first discriminator for normal/abnormal data
 
             dis1_output = dis1(inputs).to(device)
 
-            # print(output.size())  # 16
-            # print(labels.size())  # 16
-
             dis_1_loss = criterion(dis1_output.to(torch.float32), labels.to(torch.float32))
             dis_1_loss.backward()
+            optim_D1.step()
 
             # TODO: train second discriminator for real data
 
@@ -91,16 +89,13 @@ def train():
                 dis_2_fake_loss = criterion(dis2_fake_output.to(torch.float32), labels.to(torch.float32))
             except ValueError:
                 # print('ValueError batch idx:', batch_idx)  # batch 14562
-                # print(inputs, inputs.size())
-                # print(labels, labels.size())
-                # print(output, output.size())
                 labels = torch.ones(Config.batch_size).to(device)
                 dis_2_fake_loss = criterion(dis2_fake_output.to(torch.float32), labels.to(torch.float32))
 
             dis_2_fake_loss.backward()
             optim_D2.step()
 
-            dis_2_total_loss = dis_2_real_loss + dis_2_fake_loss
+            dis_2_total_loss = dis_2_real_loss.data + dis_2_fake_loss.data
 
             # TODO: train generator
 
@@ -118,7 +113,7 @@ def train():
 
             writer.add_scalar('loss/dis_2_real_loss', dis_2_real_loss.data, epoch)
             writer.add_scalar('loss/dis2_fake_loss', dis_2_fake_loss, epoch)
-            writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss.data, epoch)
+            writer.add_scalar('loss/dis2_total_loss', dis_2_total_loss, epoch)
 
             writer.add_scalar('loss/gen_loss', gen_loss.data, epoch)
 
