@@ -3,7 +3,7 @@ class Config:
     epochs = 10
     batch_size = 64
     lr = 0.0001
-    b1 = 0.9
+    b1 = 0.5
     b2 = 0.999
 
     detection_thr = 0.1
