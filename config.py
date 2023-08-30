@@ -1,7 +1,7 @@
 class Config:
 
-    epochs = 10
-    batch_size = 64
+    epochs = 30
+    batch_size = 32
     lr = 0.0001
     b1 = 0.5
     b2 = 0.999

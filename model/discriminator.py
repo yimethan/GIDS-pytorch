@@ -3,24 +3,26 @@ import torch
 
 device = torch.device('cuda')
 
+
 class Discriminator(nn.Module):
 
     def __init__(self):
-        super(Discriminator, self).__init__()   # batch * 1 * 48 * 64
+        super(Discriminator, self).__init__()
 
         self.conv0 = nn.Conv2d(64, 32, kernel_size=3, padding=1, bias=False)
-        self.relu0 = nn.ReLU(inplace=True)  # batch * 1 * 48 * 32
+        self.relu0 = nn.ReLU(inplace=True)
 
         self.conv1 = nn.Conv2d(32, 16, kernel_size=3, padding=1, bias=False)
-        self.relu1 = nn.ReLU(inplace=True)  # batch * 1 * 48 * 16
+        self.relu1 = nn.ReLU(inplace=True)
 
-        self.conv2 = nn.Conv2d(16, 1, kernel_size=(3, 48), bias=False)
-        self.sigmoid = nn.Sigmoid()  # batch * 1 * 1 * 1
-        # 1 = 48 - k + 2p) / s + 1, 48 = k
+        self.conv2 = nn.Conv2d(16, 1, kernel_size=(48, 1), bias=False)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
 
-        x = x.permute(2, 1, 0)  # batch * 1 * 48 * 64
+        # batch * 1 * 64 * 48
+
+        x = x.permute(0, 2, 3, 1)  # batch * 64 * 48 * 1
 
         x = self.conv0(x)
         x = self.relu0(x)
@@ -30,6 +32,6 @@ class Discriminator(nn.Module):
 
         x = self.conv2(x)
 
-        x = self.sigmoid(x)
+        x = self.sigmoid(x)  # batch * 1 * 1 * 1
 
         return x.view(-1)

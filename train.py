@@ -60,6 +60,18 @@ def train():
             inputs = inputs.to(device)  # batch, 1, 64, 48
             labels = labels.to(device)
 
+            # TODO: train generator
+
+            # labels.fill_(real_label)
+            gen_target = torch.zeros(Config.batch_size, requires_grad=False).to(device)
+
+            noise = torch.randn(Config.batch_size, 256, 1, 1).to(device)
+            fake_inputs = gen(noise).to(device)
+
+            gen_loss = criterion(dis2(fake_inputs).to(torch.float32), gen_target.to(torch.float32))
+            gen_loss.backward()
+            optim_G.step()
+
             # TODO: train first discriminator for normal/abnormal data
 
             dis1_output = dis1(inputs).to(device)
@@ -68,44 +80,27 @@ def train():
             dis_1_loss.backward()
             optim_D1.step()
 
-            # TODO: train second discriminator for real data
+            # TODO: train second discriminator for real/fake data
 
-            labels.fill_(real_label)
+            # noise = torch.randn(Config.batch_size, 256, 1, 1).to(device)
+            # fake_inputs = gen(noise).to(device)
 
             dis2_real_output = dis2(inputs).to(device)
+            real_target = torch.zeros(dis2_real_output.shape[0], requires_grad=False).to(device)
 
-            dis_2_real_loss = criterion(dis2_real_output.to(torch.float32), labels.to(torch.float32))
-            dis_2_real_loss.backward()
-
-            # TODO: train second discriminator for fake data
-
-            noise = torch.randn(Config.batch_size, 256, 1, 1).to(device)
-            fake_inputs = gen(noise).to(device)
-            labels.fill_(fake_label)
+            dis_2_real_loss = criterion(dis2_real_output.to(torch.float32), real_target.to(torch.float32))
+            # dis_2_real_loss.backward()
 
             dis2_fake_output = dis2(fake_inputs.detach())
+            fake_target = torch.ones(dis2_fake_output.shape[0], requires_grad=False).to(device)
 
-            try:
-                dis_2_fake_loss = criterion(dis2_fake_output.to(torch.float32), labels.to(torch.float32))
-            except ValueError:
-                # print('ValueError batch idx:', batch_idx)  # batch 14562
-                labels = torch.ones(Config.batch_size).to(device)
-                dis_2_fake_loss = criterion(dis2_fake_output.to(torch.float32), labels.to(torch.float32))
+            dis_2_fake_loss = criterion(dis2_fake_output.to(torch.float32), fake_target.to(torch.float32))
+            # dis_2_fake_loss.backward()
 
-            dis_2_fake_loss.backward()
+            dis_2_total_loss = (dis_2_real_loss + dis_2_fake_loss) / 2
+            dis_2_total_loss.backward()
+
             optim_D2.step()
-
-            dis_2_total_loss = dis_2_real_loss.data + dis_2_fake_loss.data
-
-            # TODO: train generator
-
-            labels.fill_(real_label)
-
-            dis2_output_for_gen = dis2(fake_inputs)
-
-            gen_loss = criterion(dis2_output_for_gen.to(torch.float32), labels.to(torch.float32))
-            gen_loss.backward()
-            optim_G.step()
 
             # TODO: save checkpoints
 
