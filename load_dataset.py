@@ -27,10 +27,11 @@ class Transform:
 
 class Dataset(data.Dataset):
 
-    def __init__(self):
+    def __init__(self, dataset_name='chd'):
         super(Dataset, self).__init__()
 
-        self.dataset_path = Config.dataset_path
+        self.dataset_name = dataset_name
+        self.dataset_path = Config.chd_path if dataset_name == 'chd' else Config.road_path
 
         self.transform = Transform()
 
@@ -51,22 +52,35 @@ class Dataset(data.Dataset):
 
     def get_data_from_dir(self):
 
-        attacks = os.listdir(self.dataset_path)  # dos, fuzzy, ...
+        if self.dataset_name == 'chd':
 
-        for attack in attacks:
+            attacks = os.listdir(self.dataset_path)  # dos, fuzzy, ...
 
-            path_to_data = os.path.join(self.dataset_path, attack)  # ../dataset/CHD/id_image_64/fuzzy
-            filenames = os.listdir(path_to_data)  # abnormal_22.png, normal_26237.png, ...
+            for attack in attacks:
 
-            for file in filenames:  # normal_0.png
+                path_to_data = os.path.join(self.dataset_path, attack)  # ../dataset/CHD/id_image_64/fuzzy
+                filenames = os.listdir(path_to_data)  # abnormal_22.png, normal_26237.png, ...
 
-                full_path = os.path.join(path_to_data, file)  # # ../dataset/CHD/id_image_64/fuzzy/normal_0.png
+                for file in filenames:  # normal_0.png
 
-                label = file.split('_')[0]  # 'normal'
-                if label == 'normal':
-                    label = 0
-                elif label == 'abnormal':
-                    label = 1
+                    full_path = os.path.join(path_to_data, file)  # # ../dataset/CHD/id_image_64/fuzzy/normal_0.png
 
-                self.labels.append(label)
+                    label = file.split('_')[0]  # 'normal'
+                    if label == 'normal':
+                        label = 0
+                    elif label == 'abnormal':
+                        label = 1
+
+                    self.labels.append(label)
+                    self.images.append(full_path)
+
+        else:  # road dataset
+
+            filenames = os.listdir(self.dataset_path)
+            for file in filenames:
+                full_path = os.path.join(self.dataset_path, file)
+
+                label = file.split('_')[0]
+
+                self.labels.append(int(label))
                 self.images.append(full_path)

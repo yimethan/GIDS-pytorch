@@ -13,4 +13,5 @@ class Config:
     log_f = 3000
 
     save_path = './ckpt'
-    dataset_path = '../dataset/CHD/id_image_64/'
+    chd_path = '../dataset/CHD/id_image_64/'
+    road_path = 'D:/dataset/road-dataset-master/road/signal_extractions/image_64'
